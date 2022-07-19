@@ -13,8 +13,7 @@ Public Class KeyboardHook
     Public Const EventsId As String = "22c3305d-8d09-43ad-a629-7a496fca75e4"
 #End Region
 
-
-#Region "Win32 API functions"
+#Region "Windows API functions"
     <DllImport("User32.dll")>
     Public Shared Function RegisterHotKey(ByVal hwnd As IntPtr, ByVal id As Integer, ByVal fsModifiers As Integer, ByVal vk As Integer) As Integer : End Function
     <DllImport("User32.dll")>
