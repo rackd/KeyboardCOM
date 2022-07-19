@@ -119,6 +119,7 @@ Public Class KeyboardHook
                             Debug.WriteLine("Ran function '" & hotkey.functionName & "'")
                         Catch ex As Exception
                             Debug.WriteLine("[Error] VBA error detected... stopping hook, Error message: " & ex.Message)
+                            Exit Do
                         End Try
                     End If
                 Next
