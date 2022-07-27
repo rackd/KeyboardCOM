@@ -1,45 +1,16 @@
-﻿Imports System.Runtime.InteropServices
-Imports System.Threading
+﻿Imports System.Threading
 Imports System.Windows.Forms
 Imports System.Windows.Interop
 Imports Microsoft.Office.Interop.Excel
+Imports Microsoft.Win32
+Imports KeyboardCOM.MethodsClass
 
-<ComClass(KeyboardHook.ClassId, KeyboardHook.InterfaceId, KeyboardHook.EventsId)>
+<ComClass(ClassId, InterfaceId, EventsId)>
 Public Class KeyboardHook
-
-#Region "COM GUIDs"
-    Public Const ClassId As String = "2adca793-deab-4725-a2d0-a0c3aa168847"
-    Public Const InterfaceId As String = "5018979f-94fd-4c92-a878-70f2550e9b9f"
-    Public Const EventsId As String = "22c3305d-8d09-43ad-a629-7a496fca75e4"
-#End Region
-
-#Region "Windows API functions"
-    <DllImport("User32.dll")>
-    Public Shared Function RegisterHotKey(ByVal hwnd As IntPtr, ByVal id As Integer, ByVal fsModifiers As Integer, ByVal vk As Integer) As Integer : End Function
-    <DllImport("User32.dll")>
-    Public Shared Function GetMessage(ByRef lpMsg As MSG, ByVal hWnd As IntPtr, ByVal wMsgFilterMin As UInteger, ByVal wMsgFilterMax As UInteger) As <MarshalAs(UnmanagedType.Bool)> Boolean : End Function
-    <DllImport("User32.dll")>
-    Public Shared Function PostThreadMessage(ByVal id As Integer, ByVal msg As Integer, ByVal wparam As IntPtr, ByVal lparam As IntPtr) As Integer : End Function
-    <DllImport("kernel32.dll")>
-    Public Shared Function GetCurrentThreadId() As UInteger : End Function
-#End Region
-
     ReadOnly keyConverter As New KeysConverter
-
-    Private Const WM_HOTKEY As Integer = &H312
-    Private Const WM_QUIT As Integer = &H12
-
     Private hotKeyID As Integer
     Private childThreadID As Integer
     Private hotKeyList As New List(Of HotKey)
-    Private hookStarted As Boolean
-
-    Private Structure HotKey
-        Dim workbook As Workbook
-        Dim vk As Integer
-        Dim functionName As String
-        Dim id As Integer
-    End Structure
 
     Public Sub AddHotkey(workbook As Workbook, vk As Integer, functionName As String)
         Dim hotkey As New HotKey With {
@@ -54,32 +25,18 @@ Public Class KeyboardHook
     End Sub
 
     Public Sub StartHook()
-        If hookStarted Then
-            Debug.WriteLine("[ERROR] Could not start... keyboard hook already started")
-            Exit Sub
-        End If
-
         If hotKeyList Is Nothing Then
             Debug.WriteLine("[ERROR] Could not start... no hotkeys added")
             Exit Sub
         End If
 
+        SendQuitMessagesFromReg()
+
         Call New Thread(Sub() Start()).Start()
     End Sub
 
     Public Sub StopHook()
-        If Not hookStarted Then
-            Debug.WriteLine("[ERROR] Could not stop... hooked not started")
-            Exit Sub
-        End If
-
-        If childThreadID = 0 Then
-            Debug.WriteLine("[ERROR] Could not stop... child thread ID uninitialized")
-            Exit Sub
-        End If
-
-        PostThreadMessage(childThreadID, WM_QUIT, 0, 0)
-        Debug.WriteLine("Sent terminatation request to child thread message queue with ID: " & childThreadID)
+        SendQuitMessagesFromReg()
     End Sub
 
     Private Sub Start()
@@ -106,8 +63,8 @@ Public Class KeyboardHook
         Next
 
         childThreadID = GetCurrentThreadId()
-        hookStarted = True
         Debug.WriteLine(vbNewLine & "Successfully registered all hotkeys on thread ID: " & childThreadID)
+        AddTIDToReg(childThreadID)
 
         Do While GetMessage(msg, IntPtr.Zero, 0, 0) <> 0
             If msg.message = WM_HOTKEY Then
@@ -126,13 +83,29 @@ Public Class KeyboardHook
         Loop
 
         resetHook()
-        Debug.WriteLine("Keyboard hook thread successfully exited")
+        Debug.WriteLine("Keyboard hook thread with ID " & childThreadID & " successfully exited")
     End Sub
 
     Private Sub resetHook()
         hotKeyID = 0
         childThreadID = 0
         hotKeyList = Nothing
-        hookStarted = False
+        SendQuitMessagesFromReg()
+    End Sub
+
+    Private Sub SendQuitMessagesFromReg()
+        Registry.CurrentUser.CreateSubKey(TID_REGISTRY_DIR)
+
+        For Each TID As String In Registry.CurrentUser.OpenSubKey(TID_REGISTRY_DIR).GetValueNames
+            Debug.WriteLine("Found thread, sending quit request to thread with ID: " & TID)
+
+            PostThreadMessage(CInt(TID), WM_QUIT, 0, 0)
+
+            Registry.CurrentUser.CreateSubKey(TID_REGISTRY_DIR).DeleteValue(CInt(TID))
+        Next
+    End Sub
+
+    Private Sub AddTIDToReg(TID As String)
+        Registry.CurrentUser.CreateSubKey(TID_REGISTRY_DIR).SetValue(TID, "")
     End Sub
 End Class
