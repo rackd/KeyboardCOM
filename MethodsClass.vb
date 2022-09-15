@@ -23,6 +23,7 @@ Friend Class MethodsClass
         Dim workbook As Workbook
         Dim vk As Integer
         Dim functionName As String
+        Dim argsSeperatedByComma As String
         Dim id As Integer
     End Structure
 End Class
